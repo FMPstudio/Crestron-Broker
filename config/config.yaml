@@ -1,0 +1,28 @@
+bind_host: 0.0.0.0
+bind_port: 8080
+websocket_path: /
+username: adidas
+password: -4D1d4s.
+payload_directory: payload
+state_file: state/broker_state.json
+request_timeout_seconds: 5
+retry:
+  attempts: 3
+  backoff_seconds: 0.5
+logging_level: INFO
+dry_run: false
+devices:
+  - id: 1
+    ip: 10.100.20.22
+  - id: 2
+    ip: 10.100.20.23
+  - id: 3
+    ip: 10.100.20.24
+  - id: 4
+    ip: 10.100.20.25
+  - id: 5
+    ip: 10.100.20.26
+  - id: 6
+    ip: 10.100.20.27
+  - id: 7
+    ip: 10.100.20.101

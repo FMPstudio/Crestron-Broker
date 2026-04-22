@@ -24,3 +24,9 @@ export type RoutingSnapshot = {
   lastUpdated: string;
   errors: string[];
 };
+
+
+export type EdgePath = {
+  id: string;
+  d: string;
+};

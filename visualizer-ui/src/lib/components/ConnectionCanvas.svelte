@@ -1,8 +1,5 @@
 <script lang="ts">
-  export type EdgePath = {
-    id: string;
-    d: string;
-  };
+  import type { EdgePath } from '../types';
 
   export let paths: EdgePath[] = [];
 </script>

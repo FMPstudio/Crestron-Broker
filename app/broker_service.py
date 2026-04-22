@@ -123,6 +123,29 @@ class BrokerService:
             old_client.apply_video_stream(self.payloads.video_disable)
             old_client.apply_audio_stream(self.payloads.audio_disable)
 
+            previous_old_state = self.state.devices.get(old_device)
+            if previous_old_state is not None:
+                old_video_stream = dict(previous_old_state.video_stream)
+                old_audio_stream = dict(previous_old_state.audio_stream)
+                old_video_manual = dict(previous_old_state.video_manual)
+                old_audio_manual = dict(previous_old_state.audio_manual)
+            else:
+                old_video_stream = dict(self.payloads.video_disable)
+                old_audio_stream = dict(self.payloads.audio_disable)
+                old_video_manual = {}
+                old_audio_manual = {}
+
+            old_video_stream["enable"] = False
+            old_audio_stream["enable"] = False
+
+            self.state.devices[old_device] = DeviceRuntimeState(
+                video_stream=old_video_stream,
+                audio_stream=old_audio_stream,
+                video_manual=old_video_manual,
+                audio_manual=old_audio_manual,
+            )
+            self.log.info("Updated cached runtime state for old device=%s to disabled", old_device)
+
         target_client = self.clients[cmd.device_id]
         self.log.info("Applying manual routes on target device=%s", cmd.device_id)
         target_client.apply_video_manual(self.payloads.video_by_input[cmd.input_id])

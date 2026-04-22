@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from websockets.client import connect
+from websockets import connect
 
 
 async def run(uri: str, commands: list[str]) -> None:

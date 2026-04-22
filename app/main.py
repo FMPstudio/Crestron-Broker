@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 
 import urllib3
 
@@ -35,7 +36,12 @@ async def _run_async(args: argparse.Namespace) -> None:
     broker = BrokerService(config=config, payload_manager=payload_manager, state_store=state_store)
 
     try:
-        await asyncio.to_thread(broker.startup_sync)
+        try:
+            await asyncio.to_thread(broker.startup_sync)
+        except Exception:
+            logging.getLogger("broker").exception(
+                "Startup sync failed unexpectedly. Continuing with broker startup in degraded mode."
+            )
         server = BrokerWebSocketServer(broker, host=config.bind_host, port=config.bind_port)
         await server.run()
     finally:

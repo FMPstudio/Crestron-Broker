@@ -136,3 +136,36 @@ python tools/test_client.py --uri ws://127.0.0.1:8080 1,7 1,6 3,7
 - **Transport isolation**: command parsing and routing is in `BrokerService`; WebSocket adapter is thin.
 - **Self-signed TLS support**: `verify=False` and warning suppression enabled.
 - **Safe commit policy**: state updates are persisted only after full route flow succeeds.
+
+## Desktop Routing Visualizer (Tauri + Svelte + Rust)
+
+A read-only visualization desktop app is available under `visualizer-ui/`.
+
+### What it does
+- Reads source devices from `config/config.yaml`
+- Reads current routes from `state/broker_state.json`
+- Reads input multicast destination IPs from `payload/Multicast_video_input_{1..4}.json`
+- Renders a premium dark routing map with active source/input highlights and curved SVG route lines
+- Updates live using a Rust file watcher and emits updates to the frontend
+
+### Run locally
+
+```bash
+cd visualizer-ui
+npm install
+npm run tauri dev
+```
+
+### Build desktop bundle
+
+```bash
+cd visualizer-ui
+npm run tauri build
+```
+
+### Path resolution assumption
+The backend searches upward from the current working directory until it finds both:
+- `config/config.yaml`
+- `state/broker_state.json`
+
+This keeps relative repository paths stable when launching from inside `visualizer-ui`.

@@ -82,7 +82,7 @@
         "srcIpAddress": "0.0.0.0"
       },
       "audio_stream": {
-        "enable": true,
+        "enable": false,
         "nmosId": "87026330-000b-102b-aa03-0a0000000000",
         "sdpUrl": ""
       },
@@ -104,7 +104,7 @@
         "bitRateHD": 220.0,
         "bitRateUHD": 880.0,
         "colorSpace": "bt709",
-        "enable": true,
+        "enable": false,
         "intraFrameCompression": false,
         "isCompressionEnabled": false,
         "nmosId": "87026000-0002-102b-aa00-0a0000000000",
@@ -122,7 +122,7 @@
         "selectResolution": "force"
       }
     },
-    "07": {
+    "06": {
       "audio_manual": {
         "audioFormat": {
           "format": "PCM_16",
@@ -182,11 +182,72 @@
         "selectPixelFormat": "force",
         "selectResolution": "force"
       }
+    },
+    "07": {
+      "audio_manual": {
+        "audioFormat": {
+          "format": "PCM_16",
+          "nbChannels": 2,
+          "sampleRate": 48000
+        },
+        "dstIpAddress": "239.0.102.1",
+        "dstUdpPort": 5004,
+        "isIPMXEnabled": true,
+        "isIPv6Enabled": false,
+        "isRedundancyEnabled": false,
+        "linkOffsetDelay": 0,
+        "packetTime": 1.0,
+        "redundancyDstIpAddress": "239.0.102.2",
+        "redundancyDstUdpPort": 0,
+        "redundancySrcIpAddress": "0.0.0.0",
+        "rtpPayloadType": 97,
+        "srcIpAddress": "0.0.0.0"
+      },
+      "audio_stream": {
+        "enable": false,
+        "nmosId": "87026330-000b-102b-aa03-0a0000000000",
+        "sdpUrl": ""
+      },
+      "video_manual": {
+        "dstIpAddress": "239.0.102.1",
+        "dstUdpPort": 5004,
+        "isIPMXEnabled": false,
+        "isIPv6Enabled": false,
+        "isRedundancyEnabled": false,
+        "redundancyDstIpAddress": "239.0.102.2",
+        "redundancyDstUdpPort": 5004,
+        "redundancySrcUdpPort": 5004,
+        "rtpPayloadType": 96,
+        "rtpSyncSourceId": 1431655765,
+        "rtpTimeToLive": 128,
+        "srcUdpPort": 5004
+      },
+      "video_stream": {
+        "bitRateHD": 220.0,
+        "bitRateUHD": 880.0,
+        "colorSpace": "bt709",
+        "enable": false,
+        "intraFrameCompression": false,
+        "isCompressionEnabled": false,
+        "nmosId": "87026000-0002-102b-aa00-0a0000000000",
+        "pixelFormat": "rgb_8",
+        "resolution": {
+          "height": 1080,
+          "refreshRateDen": "1",
+          "refreshRateNum": "60",
+          "scan": "progressive",
+          "width": 1920
+        },
+        "sdpContent": "",
+        "sdpUrl": "",
+        "selectPixelFormat": "force",
+        "selectResolution": "force"
+      }
     }
   },
   "input_to_device": {
-    "1": "07",
+    "1": "06",
     "2": "01"
   },
-  "last_successful_sync": "2026-04-22T13:29:28Z"
+  "last_successful_sync": "2026-04-22T14:02:53Z"
 }

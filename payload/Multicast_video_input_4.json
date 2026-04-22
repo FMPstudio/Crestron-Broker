@@ -1,0 +1,14 @@
+{
+    "isIPv6Enabled": false,
+    "isRedundancyEnabled": false,
+    "isIPMXEnabled": false,
+    "srcUdpPort": 5004,
+    "dstIpAddress": "239.0.102.7",
+    "dstUdpPort": 5004,
+    "rtpSyncSourceId": 1431655765,
+    "rtpPayloadType": 96,
+    "rtpTimeToLive": 128,
+    "redundancySrcUdpPort": 5004,
+    "redundancyDstIpAddress": "239.0.102.8",
+    "redundancyDstUdpPort": 5004
+}

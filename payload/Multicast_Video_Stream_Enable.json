@@ -1,0 +1,21 @@
+{
+    "enable": true,
+    "nmosId": "87026000-0002-102b-aa00-0a0000000000",
+    "sdpUrl": "",
+    "sdpContent": "",
+    "selectResolution": "force",
+    "resolution": {
+        "width": 1920,
+        "height": 1080,
+        "refreshRateNum": "60",
+        "refreshRateDen": "1",
+        "scan": "progressive"
+    },
+    "selectPixelFormat": "force",
+    "pixelFormat": "rgb_8",
+    "colorSpace": "bt709",
+    "isCompressionEnabled": false,
+    "intraFrameCompression": false,
+    "bitRateUHD": 880.00,
+    "bitRateHD": 220.00
+}

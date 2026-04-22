@@ -1,0 +1,101 @@
+Erstelle einen auf python basierenden broker welcher an alle lokalen IP adressen des hosts gebunden ist und auf port 8080 lauscht.
+Der Broker stellt auf port 8080 einen websocket bereit, mit welchem sich ein crestron device verbindet. 
+
+Konzept für den Adidas Broker:
+Ein auf python basierender broker welcher an alle lokalen IP adressen des hosts gebunden ist und auf port 8080 lauscht.
+Der Broker stellt auf port 8080 einen websocket bereit, mit welchem sich ein crestron device verbindet. 
+
+Was soll der Broker machen?
+Ziel des Brokers ist es, sich mit Matrox ConvertIP devices zu verbinden und dort eine JSON Payload abzusetzen. Es gibt insgesamt 6 Matrox ConvertIP Devices
+welche es zu orchestrieren gilt. Die IP Adressen der Devices lauten:
+
+- 10.100.20.22  ID=01
+- 10.100.20.23  ID=02
+- 10.100.20.24  ID=03
+- 10.100.20.25  ID=04
+- 10.100.20.26  ID=05
+- 10.100.20.27  ID=06
+- 10.100.20.101 ID=07
+
+Erhält der Broker vom crestron device das kommando 1,7 dann bedeutet das, er soll an input 1 (es gibt insgesamt 4 inputs) das Matrox ConvertIP Device mit der ID=07 routen.
+Konkret sieht der Ablauf folgendermaßen aus:
+
+1. Der Broker verbindet sich zunächst mit allen bekannten ConvertIP Devices (mit benutzername und kennwort welche in einem config file liegen) und fragt deren aktuellen status ab. Wie das möglich ist, extrahiere bitte aus beigefügtem PDF welches die API Dokumentation enthält. 
+
+Benutzername für alle Devices: adidas
+Kennwort für alle Devices: -4D1d4s.
+
+2. Der Broker speichert die States lokal in einem cache file, damit er weiß, welches device sich in welchem zustand befindet.
+3. Erhält der Broker eine Message wie 1,7 dann muss er wissen, welches der vorhandenen devices (ID 1 bis 7) bereits eine verbindung zu input 1 hat damit er:
+am device welches aktuell mit dem input verbunden ist ausführen kann:
+- Multicast Video Stream Disable.json
+- Multicast Audio Stream Disable.json
+
+und am neuen zu routenden device (in diesem beispiel 7) ausführen kann:
+- Multicast video input 1.json
+- Multicast audio input 1.json
+
+und zusätzlich:
+- Multicast Video Stream Enable.json
+- Multicast Audio Stream Enable.json
+
+Erhält der Broker dann vom Crestron Device das kommando 1,6 dann muss er folglich folgendes ausführen:
+Device ID=07:
+- Multicast Video Stream Disable.json
+- Multicast Audio Stream Disable.json
+
+Und dann am Matrox Device ID=06:
+- Multicast video input 1.json
+- Multicast audio input 1.json
+- Multicast Video Stream Enable.json
+- Multicast Audio Stream Enable.json
+
+Erhält der Broker vom Crestron Device dann das kommando 3,7 muss er folglich ausführen:
+- Lookup im cache, welche Device ID ist aktuell mit input 3 verbunden.
+Dann an das device welches aktuell mit input 3 verbunden ist:
+- Multicast Video Stream Disable.json
+- Multicast Audio Stream Disable.json
+
+Und an device ID=07
+- Multicast video input 3.json
+- Multicast audio input 3.json
+- Multicast Video Stream Enable.json
+- Multicast Audio Stream Enable.json
+
+Das ist die Logik. Sobald die aktion vom broker durchgeführt worden ist, soll der Broker 3,7 OK! an das crestron device zurück melden. 
+
+Die API Calls werden per POST in folgendem Schema an die ConvertIP Devices gesandt:
+API Call to login into a Matrox API:
+-  POST https://[IP_ADDRESS]/user/login
+
+API Call to change the Multicast address video stream on a Matrox encoder:
+-  POST https://[IP_ADDRESS]/device/settings/streams/video/0/manual
+
+API Call to enable/disable multicast video stream on a Matrox encoder:
+-  POST https://[IP_ADDRESS]/device/settings/streams/video/0
+
+API Call to change the multicast address audio stream on a Matrox encoder:
+-  POST https://[IP_ADDRESS]/device/settings/streams/audio/0/manual
+
+API Call to enable/disable multicast audio stream on a Matrox encoder:
+-  POST https://[IP_ADDRESS]/device/settings/streams/audio/0
+
+Die Payloads sind im zipfile: PAYLOAD.zip
+Die API Doku ist hier: ConvertIP_APIdocumentation.pdf
+
+Mögliche Problemfälle:
+
+State-Inkonsistenz: 
+Was passiert, wenn der Broker neu startet oder ein Device manuell (außerhalb des Brokers) umgeschaltet wurde?
+Lösung: Beim Booten des Brokers (Schritt 1) müssen wir die API-Endpoints /device/settings/streams/video/0 etc. mit GET abfragen. Wir brauchen ein Mapping, das die aktuelle Multicast-Adresse der Matrox-Devices wieder den Inputs 1-4 zuordnet.
+
+Websocket vs. Crestron: 
+Crestron (besonders ältere 3-Series) kann zickig mit WebSockets sein. Wenn das Crestron-Device nur einfache TCP-Clients unterstützt, müssten wir ggf. auf einen Plain-TCP-Socket umschwenken. Wenn es ein modernerer Controller (4-Series) ist, ist WebSocket top.
+
+Die "ID=07" Falle: 
+Du hast oben 7 IPs gelistet, aber die ID 07 hat die IP .101. Das muss im Config-File sauber gemappt sein.
+
+HTTPS / SSL-Zertifikate: 
+Da wir über https mit den Devices sprechen: Die Matrox-Dinger haben oft Self-Signed-Zertifikate. Im Python-Code müssen wir verify=False setzen (und die InsecureRequestWarning unterdrücken), sonst knallt es beim ersten POST.
+
+

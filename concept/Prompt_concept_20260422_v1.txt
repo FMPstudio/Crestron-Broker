@@ -1,0 +1,397 @@
+You are building a production-oriented Python broker service for routing Matrox ConvertIP devices via a Crestron-controlled WebSocket interface.
+
+Read the attached files first and treat them as source of truth:
+1. repo /api-documentation/ConvertIP_APIdocumentation.pdf
+2. repo /payload/*.json
+
+Your job is to DESIGN and IMPLEMENT the broker in Python, using the payload files and the API behavior from the PDF.
+
+Important:
+- Do not invent Matrox API details if the PDF states them differently.
+- If the attached PDF contradicts any assumption below, follow the PDF and document the deviation clearly.
+- I want working code, not just a concept.
+- Keep the code clean, structured, and ready for local deployment.
+- Deliver complete files with full context, not partial snippets.
+- For every important implementation decision, explain briefly why you chose it.
+- At the end, provide run instructions and a short test procedure.
+
+# PROJECT GOAL
+
+Build a Python-based broker that:
+- binds to all local host IPs (0.0.0.0)
+- listens on port 8080
+- exposes a WebSocket server on port 8080
+- accepts commands from a Crestron device in the format:
+  input_id,device_id
+  example:
+  1,7
+  3,6
+
+The broker controls Matrox ConvertIP devices by calling their HTTPS API and applying JSON payloads.
+
+# DEVICE INVENTORY
+
+There are 7 Matrox ConvertIP devices. The config file must contain this mapping:
+
+- 10.100.20.22  ID=01
+- 10.100.20.23  ID=02
+- 10.100.20.24  ID=03
+- 10.100.20.25  ID=04
+- 10.100.20.26  ID=05
+- 10.100.20.27  ID=06
+- 10.100.20.101 ID=07
+
+Important:
+- Even if an earlier note says “6 devices”, the actual source-of-truth list is 7 devices.
+- ID 07 maps to 10.100.20.101 and must be handled correctly.
+- Device IPs and IDs must live in the config file, not hardcoded in logic.
+
+# CREDENTIALS
+
+Use config file entries for username/password.
+Initial/default values:
+- username: adidas
+- password: -4D1d4s.
+
+All devices currently use the same credentials.
+
+# TRANSPORT / API CONSTRAINTS
+
+Matrox devices are accessed via HTTPS and likely use self-signed certificates.
+Requirements:
+- use verify=False
+- suppress InsecureRequestWarning cleanly
+- use session handling / login if required by the API
+- preserve cookies / auth tokens if the API requires them
+
+The known API endpoints are:
+
+Login:
+- POST https://[IP_ADDRESS]/user/login
+
+Change multicast address for video stream:
+- POST https://[IP_ADDRESS]/device/settings/streams/video/0/manual
+
+Enable/disable multicast video stream:
+- POST https://[IP_ADDRESS]/device/settings/streams/video/0
+
+Change multicast address for audio stream:
+- POST https://[IP_ADDRESS]/device/settings/streams/audio/0/manual
+
+Enable/disable multicast audio stream:
+- POST https://[IP_ADDRESS]/device/settings/streams/audio/0
+
+Additionally, on broker startup, query current state using GET endpoints as appropriate, especially:
+- /device/settings/streams/video/0
+- /device/settings/streams/audio/0
+and any other GET endpoints documented in the PDF that are needed to reconstruct routing state.
+
+IMPORTANT:
+Read the PDF carefully and extract:
+- exact login body format
+- exact response handling
+- exact authentication/cookie/token behavior
+- exact GET/POST request body format
+- exact expected JSON shape for manual stream config and enable/disable
+- whether reboot/apply/save steps are needed
+- any API timing or sequencing constraints
+
+# CORE BUSINESS LOGIC
+
+There are 4 logical inputs:
+- input 1
+- input 2
+- input 3
+- input 4
+
+Each broker command tells the broker:
+“Route device X to input Y”.
+
+Example:
+- command: 1,7
+  means:
+  route device ID 07 to input 1
+
+The broker must maintain state so it knows which device is currently assigned to each input.
+
+If the broker receives:
+- 1,7
+
+then it must:
+1. determine from cache/current state which device is currently routed to input 1
+2. on the currently assigned device for input 1:
+   - apply payload: Multicast Video Stream Disable.json
+   - apply payload: Multicast Audio Stream Disable.json
+3. on the new target device ID=07:
+   - apply payload: Multicast video input 1.json
+   - apply payload: Multicast audio input 1.json
+   - apply payload: Multicast Video Stream Enable.json
+   - apply payload: Multicast Audio Stream Enable.json
+4. update the cache/state
+5. send this acknowledgement back over WebSocket:
+   - 1,7 OK!
+
+Another example:
+- command: 1,6
+
+then:
+1. look up which device is currently on input 1
+2. disable video/audio stream on the old device
+3. configure device ID=06 to input 1 using the matching payload files
+4. enable video/audio stream on device ID=06
+5. update state
+6. respond:
+   - 1,6 OK!
+
+Another example:
+- command: 3,7
+
+then:
+1. look up which device is currently assigned to input 3
+2. disable video/audio stream on that old device
+3. on device ID=07:
+   - apply Multicast video input 3.json
+   - apply Multicast audio input 3.json
+   - apply Multicast Video Stream Enable.json
+   - apply Multicast Audio Stream Enable.json
+4. update state
+5. respond:
+   - 3,7 OK!
+
+# STARTUP / STATE RECONSTRUCTION
+
+Critical requirement:
+The broker must not trust only its previous cache.
+
+On startup it must:
+1. connect/login to all known devices
+2. query their current stream configuration/state via GET
+3. reconstruct which device is currently routed to which input based on multicast addresses and/or payload mapping
+4. write a local cache/state file
+
+Reason:
+- broker may restart
+- devices may have been changed manually outside the broker
+- cache may be stale
+
+You must implement a robust bootstrap/sync phase.
+
+# MAPPING INPUTS TO MULTICAST ADDRESSES
+
+The payload Folder contains payload JSON files such as:
+- Multicast video input 1.json
+- Multicast audio input 1.json
+- ...
+- Multicast Video Stream Enable.json
+- Multicast Audio Stream Enable.json
+- Multicast Video Stream Disable.json
+- Multicast Audio Stream Disable.json
+
+Your implementation must:
+- load these payloads from disk
+- not hardcode the JSON bodies in Python if the files already contain them
+- derive the input-to-multicast-address mapping from those payloads where possible
+- use that mapping during startup state reconstruction
+
+If needed, build an internal helper that parses the payload files and identifies:
+- which payload belongs to which input
+- which multicast address belongs to which logical input
+
+# CONFIGURATION
+
+Create a config file, for example YAML or JSON, containing:
+- bind_host
+- bind_port
+- websocket settings
+- device list with:
+  - id
+  - ip
+- username
+- password
+- payload directory
+- cache/state file path
+- request timeout
+- retry settings
+- logging level
+
+Use a clean structure.
+I prefer config-driven behavior over hardcoded constants.
+
+# CACHING / STATE FILE
+
+Implement a local cache/state file, for example JSON.
+
+It should persist at least:
+- current mapping: input -> device_id
+- per-device last known video stream state
+- per-device last known audio stream state
+- per-device last known multicast destination info
+- last successful sync timestamp
+
+On successful routing, update the cache immediately.
+
+# WEBSOCKET SERVER REQUIREMENTS
+
+Implement a WebSocket server on:
+- 0.0.0.0:8080
+
+Requirements:
+- accept simple text commands like:
+  - 1,7
+  - 3,6
+- validate syntax
+- validate input range (1-4)
+- validate device ID range (1-7)
+- normalize IDs so 7 and 07 are handled consistently
+- return useful error messages, for example:
+  - 1,7 OK!
+  - ERROR invalid command format
+  - ERROR invalid input
+  - ERROR unknown device
+  - ERROR route failed
+
+Do not silently fail.
+
+Important design note:
+Crestron may later need plain TCP instead of WebSocket.
+Therefore:
+- isolate transport handling from broker logic
+- implement command parsing/routing logic in a reusable service layer
+- keep WebSocket adapter thin
+
+But for now: the required transport to implement is WebSocket.
+
+# ERROR HANDLING / ROBUSTNESS
+
+Implement robust handling for:
+- login failure on a device
+- unreachable device
+- timeout
+- invalid API response
+- partial routing failure
+- stale cache
+- startup sync problems
+
+Think carefully about transactional behavior.
+
+Expected safe routing flow:
+1. identify old device for input
+2. disable old device streams
+3. configure new device input destinations
+4. enable new device streams
+5. only then commit state update
+
+If step 3 or 4 fails:
+- do not claim success
+- log the failure clearly
+- return an ERROR back to the WebSocket client
+- keep state consistent
+- document whether rollback is attempted or not
+
+If rollback is feasible, implement it carefully.
+If rollback is too risky, explain why and fail safely.
+
+# CODE STRUCTURE
+
+Please implement a clean project structure, for example:
+
+- app/
+  - main.py
+  - config.py
+  - websocket_server.py
+  - broker_service.py
+  - matrox_client.py
+  - state_store.py
+  - payload_manager.py
+  - models.py
+  - logging_setup.py
+- config/
+  - config.example.yaml
+- payloads/
+  - ... extracted payload files ...
+- state/
+  - broker_state.json
+- requirements.txt
+- README.md
+
+You may adjust the exact structure if you see a better one.
+
+# IMPLEMENTATION PREFERENCES
+
+Use Python 3.11+.
+
+Preferred libraries:
+- asyncio
+- websockets or FastAPI/Starlette WebSocket support
+- requests or httpx
+- pydantic optional
+- PyYAML if YAML config is used
+
+My preference:
+- asynchronous WebSocket handling is good
+- Matrox API calls can be sync or async, but keep it maintainable
+- if mixing async + sync, do it cleanly
+
+Avoid overengineering.
+This is a local infrastructure broker, not a cloud platform.
+
+# WHAT I WANT YOU TO DELIVER
+
+I want:
+1. complete source code
+2. config example
+3. requirements.txt
+4. README with startup + usage instructions
+5. explanation of the API details you extracted from the PDF
+6. explanation of how startup state reconstruction works
+7. explanation of how payload files are discovered and mapped
+8. a short manual test plan
+
+# IMPORTANT DEVELOPMENT TASKS
+
+Before coding:
+1. inspect the PDF and summarize the Matrox API mechanics that matter
+2. inspect PAYLOAD and list all payload files found
+3. identify how input 1-4 map to video/audio multicast payloads
+4. identify enable/disable payloads
+5. confirm the exact JSON/request format
+
+Then implement the broker.
+
+# ACCEPTANCE CRITERIA
+
+The result is acceptable only if:
+- broker starts and binds to 0.0.0.0:8080
+- WebSocket accepts commands like 1,7
+- startup sync queries all 7 devices
+- broker reconstructs routing state from live device state + payload mapping
+- broker updates old device and new device in correct order
+- broker writes/updates a cache/state file
+- broker returns “<input>,<device> OK!” on success
+- broker returns useful ERROR messages on failure
+- SSL self-signed handling is implemented correctly
+- IDs and IPs are config-driven
+- code is complete and runnable
+
+# EXTRA QUALITY REQUIREMENTS
+
+Please include:
+- structured logging
+- concise log messages for every routing step
+- retries with timeout for device calls
+- a dry-run mode if easy to add
+- comments only where useful, not noise
+
+When you finish:
+- show the full file tree
+- show the full content of each created file
+- explain how to run it locally
+- explain how to test with a WebSocket client
+- mention any assumptions explicitly
+
+Additional requirement:
+Please implement a command-line flag or config option `dry_run: true/false`.
+In dry-run mode, the broker must log exactly which device calls it would perform, but not send any POST requests to the Matrox devices.
+
+Additional requirement:
+Please add a small `tools/test_client.py` script that connects to the broker WebSocket and sends sample commands like `1,7`, `1,6`, `3,7`.

@@ -1,0 +1,19 @@
+{
+    "audioFormat": {
+        "format": "PCM_16",
+        "sampleRate": 48000,
+        "nbChannels": 2
+    },
+    "packetTime": 1.000,
+    "isIPv6Enabled": false,
+    "isRedundancyEnabled": false,
+    "isIPMXEnabled": true,
+    "srcIpAddress": "0.0.0.0",
+    "dstIpAddress": "239.0.102.7",
+    "dstUdpPort": 5004,
+    "rtpPayloadType": 97,
+    "redundancySrcIpAddress": "0.0.0.0",
+    "redundancyDstIpAddress": "239.0.102.8",
+    "redundancyDstUdpPort": 0,
+    "linkOffsetDelay": 0
+}

@@ -69,23 +69,44 @@ class BrokerService:
 
     def startup_sync(self) -> None:
         self.log.info("Starting device synchronization")
-        new_state = BrokerState()
-        for device_id, client in self.clients.items():
-            client.login()
-            snapshot = client.get_stream_snapshot()
-            new_state.devices[device_id] = DeviceRuntimeState(
-                video_stream=snapshot["video_stream"],
-                audio_stream=snapshot["audio_stream"],
-                video_manual=snapshot["video_manual"],
-                audio_manual=snapshot["audio_manual"],
-            )
+        live_state = BrokerState()
+        failed_devices: list[str] = []
 
-        reconstructed = self._reconstruct_input_map(new_state)
-        new_state.input_to_device = reconstructed
-        new_state.touch_sync_timestamp()
-        self.state = new_state
+        for device_id, client in self.clients.items():
+            try:
+                client.login()
+                snapshot = client.get_stream_snapshot()
+                live_state.devices[device_id] = DeviceRuntimeState(
+                    video_stream=snapshot["video_stream"],
+                    audio_stream=snapshot["audio_stream"],
+                    video_manual=snapshot["video_manual"],
+                    audio_manual=snapshot["audio_manual"],
+                )
+                self.log.info("Startup sync succeeded for device=%s", device_id)
+            except Exception as exc:
+                failed_devices.append(device_id)
+                self.log.warning("Startup sync failed for device=%s: %s", device_id, exc)
+
+        if not live_state.devices:
+            self.log.warning(
+                "Startup sync could not reach any device. "
+                "Broker will continue in degraded mode using cached state. "
+                "failed_devices=%s",
+                failed_devices,
+            )
+            return
+
+        reconstructed = self._reconstruct_input_map(live_state)
+        self.state.devices.update(live_state.devices)
+        self.state.input_to_device.update(reconstructed)
+        self.state.touch_sync_timestamp()
         self.state_store.save(self.state)
-        self.log.info("Synchronization completed. input_to_device=%s", reconstructed)
+        self.log.info(
+            "Synchronization completed with partial/live data. reachable=%s unreachable=%s input_to_device=%s",
+            list(live_state.devices.keys()),
+            failed_devices,
+            self.state.input_to_device,
+        )
 
     def route(self, cmd: Command) -> str:
         input_key = str(cmd.input_id)
@@ -111,6 +132,12 @@ class BrokerService:
         target_client.apply_video_stream(self.payloads.video_enable)
         target_client.apply_audio_stream(self.payloads.audio_enable)
 
+        self.state.devices[cmd.device_id] = DeviceRuntimeState(
+            video_stream=dict(self.payloads.video_enable),
+            audio_stream=dict(self.payloads.audio_enable),
+            video_manual=dict(self.payloads.video_by_input[cmd.input_id]),
+            audio_manual=dict(self.payloads.audio_by_input[cmd.input_id]),
+        )
         self.state.input_to_device[input_key] = cmd.device_id
         self.state.touch_sync_timestamp()
         self.state_store.save(self.state)

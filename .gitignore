@@ -1,1 +1,4 @@
 app/__pycache__
+visualizer-ui/node_modules
+visualizer-ui/dist
+visualizer-ui/src-tauri/target

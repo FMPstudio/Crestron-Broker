@@ -108,6 +108,28 @@ class BrokerService:
             self.state.input_to_device,
         )
 
+    def reset_all_streams(self) -> None:
+        self.log.info("Reset flag detected: disabling all configured device streams before startup sync")
+        for device_id, client in self.clients.items():
+            self.log.info("Resetting streams for device=%s", device_id)
+            try:
+                client.login()
+            except Exception as exc:
+                self.log.warning("Startup reset login failed for device=%s: %s", device_id, exc)
+                continue
+
+            try:
+                self.log.info("Applying video disable during startup reset for device=%s", device_id)
+                client.apply_video_stream(self.payloads.video_disable)
+            except Exception as exc:
+                self.log.warning("Startup reset video disable failed for device=%s: %s", device_id, exc)
+
+            try:
+                self.log.info("Applying audio disable during startup reset for device=%s", device_id)
+                client.apply_audio_stream(self.payloads.audio_disable)
+            except Exception as exc:
+                self.log.warning("Startup reset audio disable failed for device=%s: %s", device_id, exc)
+
     def route(self, cmd: Command) -> str:
         input_key = str(cmd.input_id)
         old_device = self.state.input_to_device.get(input_key)

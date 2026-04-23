@@ -34,10 +34,22 @@ function createRoutingStore() {
   };
 
   const start = async () => {
-    await refresh();
+    if (unlisten) {
+      unlisten();
+      unlisten = null;
+    }
+
+    set({
+      ...initialState,
+      lastUpdated: new Date().toISOString(),
+      errors: ['Loading fresh snapshot…']
+    });
+
     unlisten = await listen<RoutingSnapshot>('routing_snapshot_updated', (event) => {
       set(event.payload);
     });
+
+    await refresh();
   };
 
   const stop = async () => {

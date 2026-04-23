@@ -2,9 +2,16 @@
   import type { EdgePath } from '../types';
 
   export let paths: EdgePath[] = [];
+  export let overlayEl: SVGSVGElement | undefined;
 </script>
 
-<svg class="connection-layer" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+<svg
+  class="connection-layer"
+  viewBox="0 0 1000 1000"
+  preserveAspectRatio="none"
+  aria-hidden="true"
+  bind:this={overlayEl}
+>
   <defs>
     <filter id="lineGlow" x="-25%" y="-25%" width="150%" height="150%">
       <feGaussianBlur stdDeviation="3" result="blur" />

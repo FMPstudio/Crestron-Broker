@@ -15,6 +15,7 @@
   };
 
   let layoutRoot: HTMLDivElement;
+  let connectionLayer: SVGSVGElement | undefined;
   let edgePaths: EdgePath[] = [];
 
   const unsubscribe = routingStore.subscribe(async (value) => {
@@ -24,9 +25,9 @@
   });
 
   const computePaths = () => {
-    if (!layoutRoot) return;
+    if (!layoutRoot || !connectionLayer) return;
 
-    const bounds = layoutRoot.getBoundingClientRect();
+    const bounds = connectionLayer.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
 
     edgePaths = snapshot.routes
@@ -65,9 +66,15 @@
 
   onMount(async () => {
     await routingStore.start();
+
     const observer = new ResizeObserver(() => computePaths());
     observer.observe(layoutRoot);
+    if (connectionLayer) observer.observe(connectionLayer);
+
     window.addEventListener('resize', computePaths);
+
+    await tick();
+    computePaths();
 
     return () => {
       observer.disconnect();
@@ -108,7 +115,7 @@
       </div>
     </div>
 
-    <ConnectionCanvas paths={edgePaths} />
+    <ConnectionCanvas paths={edgePaths} bind:overlayEl={connectionLayer} />
 
     <div class="column">
       <h2>Inputs</h2>

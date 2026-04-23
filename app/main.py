@@ -19,6 +19,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Crestron-Matrox routing broker")
     parser.add_argument("--config", default="config/config.yaml", help="Path to YAML config")
     parser.add_argument("--dry-run", action="store_true", help="Override config and disable POST calls")
+    parser.add_argument("--reset", action="store_true", help="Disable all device streams before startup sync")
     parser.add_argument(
         "--transport",
         choices=("websocket", "tcp", "both"),
@@ -44,6 +45,8 @@ async def _run_async(args: argparse.Namespace) -> None:
 
     try:
         try:
+            if args.reset:
+                await asyncio.to_thread(broker.reset_all_streams)
             await asyncio.to_thread(broker.startup_sync)
         except Exception:
             logging.getLogger("broker").exception(

@@ -56,7 +56,8 @@ README.md
 Edit `config/config.yaml`:
 
 - `bind_host`: `0.0.0.0`
-- `bind_port`: `8080`
+- `websocket_port`: `8080`
+- `tcp_port`: `8081`
 - `devices`: includes all 7 required devices (IDs `01`..`07`, including `10.100.20.101` for ID `07`)
 - `username` / `password`: default credentials
 - `payload_directory`: payload source path
@@ -102,13 +103,25 @@ If any step fails, broker returns `ERROR route failed` and does not persist succ
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m app.main --config config/config.yaml
+python -m app.main --config config/config.yaml --transport websocket
 ```
 
 Dry run:
 
 ```bash
-python -m app.main --config config/config.yaml --dry-run
+python -m app.main --config config/config.yaml --transport websocket --dry-run
+```
+
+TCP mode:
+
+```bash
+python -m app.main --config config/config.yaml --transport tcp
+```
+
+Both transports:
+
+```bash
+python -m app.main --config config/config.yaml --transport both
 ```
 
 ## WebSocket test procedure
@@ -120,12 +133,17 @@ python -m app.main --config config/config.yaml
 
 Terminal 2:
 ```bash
-python tools/test_client.py
+python tools/test_client.py --transport websocket --uri ws://127.0.0.1:8080
 ```
 
 Or custom commands:
 ```bash
-python tools/test_client.py --uri ws://127.0.0.1:8080 1,7 1,6 3,7
+python tools/test_client.py --transport websocket --uri ws://127.0.0.1:8080 1,7 1,6 3,7
+```
+
+TCP test:
+```bash
+python tools/test_client.py --transport tcp --host 127.0.0.1 --port 8081 1,7 1,6 3,7
 ```
 
 ## Important implementation decisions

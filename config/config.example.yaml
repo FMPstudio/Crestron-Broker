@@ -1,5 +1,6 @@
 bind_host: 0.0.0.0
-bind_port: 8080
+websocket_port: 8080
+tcp_port: 8081
 websocket_path: /
 username: adidas
 password: -4D1d4s.

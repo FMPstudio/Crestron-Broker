@@ -43,27 +43,7 @@ function createRoutingStore() {
   };
 
   const start = async () => {
-<<<<<<< HEAD
-    if (unlisten) {
-      unlisten();
-      unlisten = null;
-    }
-
-    set({
-      ...initialState,
-      lastUpdated: new Date().toISOString(),
-      errors: ['Loading fresh snapshot…']
-    });
-
-    unlisten = await listen<RoutingSnapshot>('routing_snapshot_updated', (event) => {
-      set(event.payload);
-    });
-
-    await refresh();
-  };
-=======
     console.info('[routingStore] start() called');
->>>>>>> origin/codex/fix-tauri-+-svelte-routing-visualizer-build-c8esn1
 
     if (unlisten) {
       unlisten();

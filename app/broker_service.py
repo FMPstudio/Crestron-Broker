@@ -111,10 +111,26 @@ class BrokerService:
     def route(self, cmd: Command) -> str:
         input_key = str(cmd.input_id)
         old_device = self.state.input_to_device.get(input_key)
+        previous_inputs_for_target = [
+            existing_input
+            for existing_input, device_id in self.state.input_to_device.items()
+            if device_id == cmd.device_id and existing_input != input_key
+        ]
 
         self.log.info("Routing input=%s to device=%s (old=%s)", cmd.input_id, cmd.device_id, old_device)
 
+        for existing_input in previous_inputs_for_target:
+            self.state.input_to_device.pop(existing_input, None)
+            self.log.info(
+                "Cleared previous mapping for target device=%s from input=%s",
+                cmd.device_id,
+                existing_input,
+            )
+
         if old_device == cmd.device_id:
+            if previous_inputs_for_target:
+                self.state.touch_sync_timestamp()
+                self.state_store.save(self.state)
             return f"{cmd.input_id},{int(cmd.device_id)} OK!"
 
         if old_device and old_device in self.clients:

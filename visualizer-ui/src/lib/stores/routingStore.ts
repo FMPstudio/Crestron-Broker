@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { RoutingSnapshot } from '../types';
 
 const initialState: RoutingSnapshot = {
@@ -21,10 +21,19 @@ function createRoutingStore() {
   let unlisten: UnlistenFn | null = null;
 
   const refresh = async () => {
+    console.info('[routingStore] refresh() started');
     try {
+      console.info('[routingStore] invoking get_routing_snapshot');
       const snapshot = await invoke<RoutingSnapshot>('get_routing_snapshot');
       set(snapshot);
+      console.info('[routingStore] refresh() succeeded', {
+        sources: snapshot.sources.length,
+        inputs: snapshot.inputs.length,
+        routes: snapshot.routes.length,
+        errors: snapshot.errors.length
+      });
     } catch (error) {
+      console.error('[routingStore] refresh() failed', error);
       set({
         ...initialState,
         errors: [`Failed to load snapshot: ${String(error)}`],
@@ -34,6 +43,7 @@ function createRoutingStore() {
   };
 
   const start = async () => {
+<<<<<<< HEAD
     if (unlisten) {
       unlisten();
       unlisten = null;
@@ -51,11 +61,55 @@ function createRoutingStore() {
 
     await refresh();
   };
+=======
+    console.info('[routingStore] start() called');
+>>>>>>> origin/codex/fix-tauri-+-svelte-routing-visualizer-build-c8esn1
 
-  const stop = async () => {
     if (unlisten) {
       unlisten();
       unlisten = null;
+      console.info('[routingStore] cleared existing listener');
+    }
+
+    set({
+      ...initialState,
+      lastUpdated: new Date().toISOString(),
+      errors: ['Loading fresh snapshot…']
+    });
+
+    const refreshPromise = refresh();
+
+    void (async () => {
+      console.info('[routingStore] registering listener: routing_snapshot_updated');
+      try {
+        unlisten = await listen<RoutingSnapshot>('routing_snapshot_updated', (event) => {
+          console.info('[routingStore] update event received', {
+            routes: event.payload.routes.length,
+            errors: event.payload.errors.length
+          });
+          set(event.payload);
+        });
+        console.info('[routingStore] listener registered successfully');
+      } catch (error) {
+        console.error('[routingStore] listener registration failed', error);
+        const current = get({ subscribe });
+        set({
+          ...current,
+          errors: [...current.errors, `Live updates unavailable: ${String(error)}`],
+          lastUpdated: current.lastUpdated || new Date().toISOString()
+        });
+      }
+    })();
+
+    await refreshPromise;
+  };
+
+  const stop = async () => {
+    console.info('[routingStore] stop() called');
+    if (unlisten) {
+      unlisten();
+      unlisten = null;
+      console.info('[routingStore] listener removed');
     }
   };
 

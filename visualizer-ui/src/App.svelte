@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import ConnectionCanvas, { type EdgePath } from './lib/components/ConnectionCanvas.svelte';
+  import ConnectionCanvas from './lib/components/ConnectionCanvas.svelte';
   import InputCard from './lib/components/InputCard.svelte';
   import SourceCard from './lib/components/SourceCard.svelte';
   import { routingStore } from './lib/stores/routingStore';
-  import type { RoutingSnapshot } from './lib/types';
+  import type { EdgePath, RoutingSnapshot } from './lib/types';
 
   let snapshot: RoutingSnapshot = {
     sources: [],

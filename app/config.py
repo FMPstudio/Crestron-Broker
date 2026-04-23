@@ -32,7 +32,8 @@ def load_config(config_path: str) -> BrokerConfig:
 
         return BrokerConfig(
             bind_host=str(raw["bind_host"]),
-            bind_port=int(raw["bind_port"]),
+            websocket_port=int(raw.get("websocket_port", raw.get("bind_port", 8080))),
+            tcp_port=int(raw.get("tcp_port", 8081)),
             websocket_path=str(raw.get("websocket_path", "/")),
             username=str(raw["username"]),
             password=str(raw["password"]),

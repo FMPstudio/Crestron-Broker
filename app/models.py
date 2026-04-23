@@ -20,7 +20,8 @@ class RetryConfig:
 @dataclass(slots=True)
 class BrokerConfig:
     bind_host: str
-    bind_port: int
+    websocket_port: int
+    tcp_port: int
     websocket_path: str
     username: str
     password: str

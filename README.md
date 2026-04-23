@@ -56,7 +56,8 @@ README.md
 Edit `config/config.yaml`:
 
 - `bind_host`: `0.0.0.0`
-- `bind_port`: `8080`
+- `websocket_port`: `8080`
+- `tcp_port`: `8081`
 - `devices`: includes all 7 required devices (IDs `01`..`07`, including `10.100.20.101` for ID `07`)
 - `username` / `password`: default credentials
 - `payload_directory`: payload source path
@@ -102,13 +103,25 @@ If any step fails, broker returns `ERROR route failed` and does not persist succ
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m app.main --config config/config.yaml
+python -m app.main --config config/config.yaml --transport websocket
 ```
 
 Dry run:
 
 ```bash
-python -m app.main --config config/config.yaml --dry-run
+python -m app.main --config config/config.yaml --transport websocket --dry-run
+```
+
+TCP mode:
+
+```bash
+python -m app.main --config config/config.yaml --transport tcp
+```
+
+Both transports:
+
+```bash
+python -m app.main --config config/config.yaml --transport both
 ```
 
 ## WebSocket test procedure
@@ -120,12 +133,17 @@ python -m app.main --config config/config.yaml
 
 Terminal 2:
 ```bash
-python tools/test_client.py
+python tools/test_client.py --transport websocket --uri ws://127.0.0.1:8080
 ```
 
 Or custom commands:
 ```bash
-python tools/test_client.py --uri ws://127.0.0.1:8080 1,7 1,6 3,7
+python tools/test_client.py --transport websocket --uri ws://127.0.0.1:8080 1,7 1,6 3,7
+```
+
+TCP test:
+```bash
+python tools/test_client.py --transport tcp --host 127.0.0.1 --port 8081 1,7 1,6 3,7
 ```
 
 ## Important implementation decisions
@@ -136,36 +154,3 @@ python tools/test_client.py --uri ws://127.0.0.1:8080 1,7 1,6 3,7
 - **Transport isolation**: command parsing and routing is in `BrokerService`; WebSocket adapter is thin.
 - **Self-signed TLS support**: `verify=False` and warning suppression enabled.
 - **Safe commit policy**: state updates are persisted only after full route flow succeeds.
-
-## Desktop Routing Visualizer (Tauri + Svelte + Rust)
-
-A read-only visualization desktop app is available under `visualizer-ui/`.
-
-### What it does
-- Reads source devices from `config/config.yaml`
-- Reads current routes from `state/broker_state.json`
-- Reads input multicast destination IPs from `payload/Multicast_video_input_{1..4}.json`
-- Renders a premium dark routing map with active source/input highlights and curved SVG route lines
-- Updates live using a Rust file watcher and emits updates to the frontend
-
-### Run locally
-
-```bash
-cd visualizer-ui
-npm install
-npm run tauri dev
-```
-
-### Build desktop bundle
-
-```bash
-cd visualizer-ui
-npm run tauri build
-```
-
-### Path resolution assumption
-The backend searches upward from the current working directory until it finds both:
-- `config/config.yaml`
-- `state/broker_state.json`
-
-This keeps relative repository paths stable when launching from inside `visualizer-ui`.

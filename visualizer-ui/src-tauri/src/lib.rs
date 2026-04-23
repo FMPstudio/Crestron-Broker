@@ -1,8 +1,8 @@
 use chrono::Utc;
-use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -47,6 +47,7 @@ struct RoutingSnapshot {
 
 #[derive(Debug, Clone)]
 struct AppPaths {
+    project_root: PathBuf,
     config: PathBuf,
     state: PathBuf,
     payloads: [PathBuf; INPUT_COUNT as usize],
@@ -71,7 +72,11 @@ struct BrokerState {
 #[tauri::command]
 fn get_routing_snapshot(app: AppHandle) -> Result<RoutingSnapshot, String> {
     let paths = app.state::<AppPaths>();
-    Ok(build_snapshot(&paths))
+    println!(
+        "[routing_visualizer] get_routing_snapshot invoked; broker_state.json={}",
+        paths.state.display()
+    );
+    Ok(build_snapshot(&paths, "command:get_routing_snapshot"))
 }
 
 fn normalize_device_id(value: &str) -> String {
@@ -120,7 +125,12 @@ fn read_state_map(path: &Path, errors: &mut Vec<String>) -> HashMap<u8, String> 
                 .input_to_device
                 .unwrap_or_default()
                 .into_iter()
-                .filter_map(|(input, device)| input.parse::<u8>().ok().map(|k| (k, normalize_device_id(&device))))
+                .filter_map(|(input, device)| {
+                    input
+                        .parse::<u8>()
+                        .ok()
+                        .map(|k| (k, normalize_device_id(&device)))
+                })
                 .collect(),
             Err(err) => {
                 errors.push(format!("Failed parsing broker state JSON: {err}"));
@@ -141,7 +151,9 @@ fn read_multicast_ip(path: &Path, errors: &mut Vec<String>, input_id: u8) -> Str
                 .get("dstIpAddress")
                 .and_then(Value::as_str)
                 .unwrap_or_else(|| {
-                    errors.push(format!("Input {input_id}: missing dstIpAddress in payload JSON"));
+                    errors.push(format!(
+                        "Input {input_id}: missing dstIpAddress in payload JSON"
+                    ));
                     "—"
                 })
                 .to_string(),
@@ -151,13 +163,20 @@ fn read_multicast_ip(path: &Path, errors: &mut Vec<String>, input_id: u8) -> Str
             }
         },
         Err(err) => {
-            errors.push(format!("Input {input_id}: payload file not readable: {err}"));
+            errors.push(format!(
+                "Input {input_id}: payload file not readable: {err}"
+            ));
             "—".to_string()
         }
     }
 }
 
-fn build_snapshot(paths: &AppPaths) -> RoutingSnapshot {
+fn build_snapshot(paths: &AppPaths, reason: &str) -> RoutingSnapshot {
+    println!(
+        "[routing_visualizer] rebuilding snapshot ({reason}); broker_state.json={}",
+        paths.state.display()
+    );
+
     let mut errors = Vec::new();
     let devices = read_config_devices(&paths.config, &mut errors);
     let route_map = read_state_map(&paths.state, &mut errors);
@@ -183,7 +202,10 @@ fn build_snapshot(paths: &AppPaths) -> RoutingSnapshot {
     let mut input_multicasts: BTreeMap<u8, String> = BTreeMap::new();
     for (index, payload_path) in paths.payloads.iter().enumerate() {
         let input_id = (index + 1) as u8;
-        input_multicasts.insert(input_id, read_multicast_ip(payload_path, &mut errors, input_id));
+        input_multicasts.insert(
+            input_id,
+            read_multicast_ip(payload_path, &mut errors, input_id),
+        );
     }
 
     let inputs = (1..=INPUT_COUNT)
@@ -209,6 +231,14 @@ fn build_snapshot(paths: &AppPaths) -> RoutingSnapshot {
         })
         .collect::<Vec<_>>();
 
+    println!(
+        "[routing_visualizer] snapshot rebuilt ({reason}): sources={}, inputs={}, routes={}, errors={}",
+        sources.len(),
+        inputs.len(),
+        routes.len(),
+        errors.len()
+    );
+
     RoutingSnapshot {
         sources,
         inputs,
@@ -218,21 +248,56 @@ fn build_snapshot(paths: &AppPaths) -> RoutingSnapshot {
     }
 }
 
-fn detect_repo_root() -> PathBuf {
-    let mut current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+fn canonical_or_original(path: PathBuf) -> PathBuf {
+    fs::canonicalize(&path).unwrap_or(path)
+}
+
+fn is_project_root(path: &Path) -> bool {
+    path.join("config/config.yaml").exists()
+        && path.join("state/broker_state.json").exists()
+        && path.join("payload/Multicast_video_input_1.json").exists()
+}
+
+fn find_root_from(start: PathBuf) -> Option<PathBuf> {
+    let mut current = start;
     loop {
-        if current.join("config/config.yaml").exists() && current.join("state/broker_state.json").exists() {
-            return current;
+        if is_project_root(&current) {
+            return Some(canonical_or_original(current));
         }
         if !current.pop() {
-            return std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            return None;
         }
     }
 }
 
+fn resolve_project_root() -> PathBuf {
+    let mut candidates = Vec::new();
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd);
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.to_path_buf());
+        }
+    }
+
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+
+    for candidate in candidates {
+        if let Some(root) = find_root_from(candidate) {
+            return root;
+        }
+    }
+
+    canonical_or_original(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+}
+
 fn build_paths() -> AppPaths {
-    let root = detect_repo_root();
+    let root = resolve_project_root();
     AppPaths {
+        project_root: root.clone(),
         config: root.join("config/config.yaml"),
         state: root.join("state/broker_state.json"),
         payloads: [
@@ -244,6 +309,56 @@ fn build_paths() -> AppPaths {
     }
 }
 
+fn log_paths(paths: &AppPaths) {
+    println!(
+        "[routing_visualizer] resolved project_root={}",
+        paths.project_root.display()
+    );
+    println!(
+        "[routing_visualizer] resolved config_path={}",
+        paths.config.display()
+    );
+    println!(
+        "[routing_visualizer] resolved broker_state_path={}",
+        paths.state.display()
+    );
+    for payload in &paths.payloads {
+        println!(
+            "[routing_visualizer] resolved payload_path={}",
+            payload.display()
+        );
+    }
+}
+
+fn relevant_event_paths(event: &Event, paths: &AppPaths) -> Vec<PathBuf> {
+    let relevant_names: HashSet<&str> = [
+        "broker_state.json",
+        "config.yaml",
+        "Multicast_video_input_1.json",
+        "Multicast_video_input_2.json",
+        "Multicast_video_input_3.json",
+        "Multicast_video_input_4.json",
+    ]
+    .into_iter()
+    .collect();
+
+    event
+        .paths
+        .iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| relevant_names.contains(name))
+        })
+        .map(|path| canonical_or_original(path.clone()))
+        .filter(|path| {
+            path.starts_with(paths.project_root.join("state"))
+                || path.starts_with(paths.project_root.join("config"))
+                || path.starts_with(paths.project_root.join("payload"))
+        })
+        .collect()
+}
+
 fn start_file_watcher(app: AppHandle, paths: AppPaths) {
     let (tx, rx) = mpsc::channel();
 
@@ -251,18 +366,25 @@ fn start_file_watcher(app: AppHandle, paths: AppPaths) {
         let mut watcher = match RecommendedWatcher::new(tx, Config::default()) {
             Ok(watcher) => watcher,
             Err(err) => {
-                let _ = app.emit("routing_snapshot_updated", build_snapshot(&paths));
-                eprintln!("Failed to create watcher: {err}");
+                eprintln!("[routing_visualizer] failed to create watcher: {err}");
                 return;
             }
         };
 
-        let mut files_to_watch = vec![paths.config.clone(), paths.state.clone()];
-        files_to_watch.extend(paths.payloads.iter().cloned());
+        let watch_dirs = [
+            paths.project_root.join("config"),
+            paths.project_root.join("state"),
+            paths.project_root.join("payload"),
+        ];
 
-        for file in files_to_watch {
-            if let Err(err) = watcher.watch(&file, RecursiveMode::NonRecursive) {
-                eprintln!("Watcher warning for {}: {err}", file.display());
+        for dir in watch_dirs {
+            if let Err(err) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
+                eprintln!(
+                    "[routing_visualizer] watcher warning for {}: {err}",
+                    dir.display()
+                );
+            } else {
+                println!("[routing_visualizer] watching directory={}", dir.display());
             }
         }
 
@@ -274,12 +396,27 @@ fn start_file_watcher(app: AppHandle, paths: AppPaths) {
                         EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_)
                     ) =>
                 {
-                    let snapshot = build_snapshot(&paths);
-                    let _ = app.emit("routing_snapshot_updated", snapshot);
+                    let hits = relevant_event_paths(&event, &paths);
+                    if hits.is_empty() {
+                        continue;
+                    }
+
+                    println!(
+                        "[routing_visualizer] watcher event kind={:?} paths={:?}",
+                        event.kind, hits
+                    );
+                    let snapshot = build_snapshot(&paths, "watcher:event");
+                    if let Err(err) = app.emit("routing_snapshot_updated", snapshot) {
+                        eprintln!(
+                            "[routing_visualizer] failed emitting routing_snapshot_updated: {err}"
+                        );
+                    } else {
+                        println!("[routing_visualizer] emitted routing_snapshot_updated");
+                    }
                 }
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!("Watch event error: {err}");
+                    eprintln!("[routing_visualizer] watch event error: {err}");
                 }
             }
         }
@@ -291,10 +428,16 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let paths = build_paths();
+            log_paths(&paths);
             app.manage(paths.clone());
 
-            let initial = build_snapshot(&paths);
-            let _ = app.emit("routing_snapshot_updated", initial);
+            let initial = build_snapshot(&paths, "startup");
+            if let Err(err) = app.emit("routing_snapshot_updated", initial) {
+                eprintln!("[routing_visualizer] failed emitting startup snapshot: {err}");
+            } else {
+                println!("[routing_visualizer] emitted startup routing snapshot");
+            }
+
             start_file_watcher(app.handle().clone(), paths);
             Ok(())
         })
